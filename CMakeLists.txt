@@ -105,3 +105,9 @@ install(DIRECTORY launch/
 install(DIRECTORY config/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
 )
+
+catkin_install_python(PROGRAMS
+  scripts/imu_transformer.py
+  # scripts/imu_header_fix.py  # uncomment if you also added this
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

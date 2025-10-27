@@ -4,7 +4,17 @@
     <arg name="robot_name" />
 
     <arg name="rviz" default="false" />
-    <rosparam command="load" file="$(find fast_lio)/config/robosenseAiry.yaml" />
+    <rosparam ns="$(arg robot_name)" command="load" file="$(find fast_lio)/config/robosenseAiry.yaml" />
+
+    <node pkg="fast_lio" type="imu_transformer.py" name="imu_transformer" output="screen">
+        <param name="target_frame" value="r5000219a8/base_front_mid_laser_link"/>
+        <param name="rpy_deg" value="0 0 90"/>
+        <param name="accel_scale" value="9.80665"/>   
+        <param name="gyro_scale" value="0.01745329"/>
+        <remap from="imu_in"  to="/r5000219a8/base_front_mid_lidar_imu_data"/>
+        <remap from="imu_out" to="/imu_in_lidar"/>
+    </node>
+
 
     <param name="feature_extract_enable" type="bool" value="0"/>
     <param name="point_filter_num" type="int" value="3"/>
