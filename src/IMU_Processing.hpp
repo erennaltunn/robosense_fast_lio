@@ -220,8 +220,8 @@ void ImuProcess::PublishOdometry(const state_ikfom &imu_state, double timestamp)
 {
     nav_msgs::Odometry odom_msg;
     odom_msg.header.stamp = ros::Time().fromSec(timestamp);
-    odom_msg.header.frame_id = "camera_init";
-    odom_msg.child_frame_id = "body";
+    odom_msg.header.frame_id = "fast_odom_link";
+    odom_msg.child_frame_id = "fast_body_link";
 
     // 设置位置
     geometry_msgs::Pose pose_msg;
@@ -252,7 +252,7 @@ void ImuProcess::PublishOdometry(const state_ikfom &imu_state, double timestamp)
     q_tf.setY(q.y());
     q_tf.setZ(q.z());
     transform.setRotation( q_tf );
-    br.sendTransform( tf::StampedTransform( transform, odom_msg.header.stamp, "camera_init", "body" ) );
+    br.sendTransform( tf::StampedTransform( transform, odom_msg.header.stamp, "fast_odom_link", "fast_body_link" ) );
 }
 void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_out)
 {

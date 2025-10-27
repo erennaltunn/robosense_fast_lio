@@ -51,7 +51,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   pcl_ros
   tf
-  livox_ros_driver
+  # livox_ros_driver
   message_generation
   eigen_conversions
 )
@@ -90,3 +90,18 @@ catkin_package(
 add_executable(fastlio_mapping src/laserMapping.cpp include/ikd-Tree/ikd_Tree.cpp src/preprocess.cpp)
 target_link_libraries(fastlio_mapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${PYTHON_LIBRARIES})
 target_include_directories(fastlio_mapping PRIVATE ${PYTHON_INCLUDE_DIRS})
+
+# Install the node binary so roslaunch can find it from install space
+install(TARGETS fastlio_mapping
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+# Install launch files (assuming you have a 'launch' directory)
+install(DIRECTORY launch/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
+)
+
+# Install config files (assuming you have a 'config' directory)
+install(DIRECTORY config/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)
