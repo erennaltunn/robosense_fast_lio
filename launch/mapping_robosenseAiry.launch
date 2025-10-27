@@ -4,11 +4,14 @@
     <arg name="robot_name" />
 
     <arg name="rviz" default="false" />
+    <remap from="/tf" to="/$(arg robot_name)/tf"/>
+    <remap from="/tf_static" to="/$(arg robot_name)/tf_static"/>
+
     <rosparam ns="$(arg robot_name)" command="load" file="$(find fast_lio)/config/robosenseAiry.yaml" />
 
     <node pkg="fast_lio" type="imu_transformer.py" name="imu_transformer" output="screen">
         <param name="target_frame" value="r5000219a8/base_front_mid_laser_link"/>
-        <param name="rpy_deg" value="0 0 90"/>
+        <rosparam param="rpy_deg">[90.0, 0.0, 90.0]</rosparam>
         <param name="accel_scale" value="9.80665"/>   
         <param name="gyro_scale" value="0.01745329"/>
         <remap from="imu_in"  to="/r5000219a8/base_front_mid_lidar_imu_data"/>
