@@ -114,7 +114,8 @@ ImuProcess::ImuProcess()
   Lidar_R_wrt_IMU = Eye3d;
   ns = ros::this_node::getNamespace();
   if (!ns.empty() && ns.front() == '/') ns.erase(0, 1); // strip leading slash
-  robot_name = ns;    
+  robot_name = ns;   
+  cout << robot_name;  
   ROS_INFO("%s", robot_name);
 
   // nh.param<string>("fast_base_frame", base_frame,"fast_body_link");
