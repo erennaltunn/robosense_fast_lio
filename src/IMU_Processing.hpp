@@ -23,6 +23,8 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/Vector3.h>
 #include "use-ikfom.hpp"
+#include <tf/transform_listener.h>
+#include <geometry_msgs/TransformStamped.h>
 
 /// *************Preconfiguration
 
@@ -54,6 +56,8 @@ class ImuProcess
     {
         odom_pub_ = pub;
     }
+  void InitializeFromOdom();
+  
   ofstream fout_imu;
   V3D cov_acc;
   V3D cov_gyr;
@@ -78,11 +82,18 @@ class ImuProcess
   V3D mean_gyr;
   V3D angvel_last;
   V3D acc_s_last;
+  string odom_link, base_link, robot_name, ns;
+
   double start_timestamp_;
   double last_lidar_end_time_;
   int    init_iter_num = 1;
   bool   b_first_frame_ = true;
   bool   imu_need_init_ = true;
+  tf::TransformListener* tf_listener_;
+  bool initialized_from_odom_ = false;
+  Eigen::Vector3d initial_pos_;
+  Eigen::Quaterniond initial_rot_;
+
     ros::Publisher odom_pub_;
     void PublishOdometry(const state_ikfom &imu_state, double timestamp);
 };
@@ -101,6 +112,13 @@ ImuProcess::ImuProcess()
   angvel_last     = Zero3d;
   Lidar_T_wrt_IMU = Zero3d;
   Lidar_R_wrt_IMU = Eye3d;
+  ns = ros::this_node::getNamespace();
+  if (!ns.empty() && ns.front() == '/') ns.erase(0, 1); // strip leading slash
+  robot_name = ns;    
+  ROS_INFO("%s", robot_name);
+
+  // nh.param<string>("fast_base_frame", base_frame,"fast_body_link");
+
   last_imu_.reset(new sensor_msgs::Imu());
 }
 
@@ -125,6 +143,27 @@ void ImuProcess::set_extrinsic(const MD(4,4) &T)
 {
   Lidar_T_wrt_IMU = T.block<3,1>(0,3);
   Lidar_R_wrt_IMU = T.block<3,3>(0,0);
+}
+
+void ImuProcess::InitializeFromOdom() {
+    tf_listener_ = new tf::TransformListener();
+    tf::StampedTransform tf_odom_to_base;
+    try {
+        // Wait for a valid transform
+        tf_listener_->waitForTransform("odom", "base_link", ros::Time(0), ros::Duration(3.0));
+        tf_listener_->lookupTransform("odom", "base_link", ros::Time(0), tf_odom_to_base);
+        ROS_INFO("Initializing FAST-LIO odom at current base_link pose.");
+        
+        tf::Vector3 t = tf_odom_to_base.getOrigin();
+        tf::Quaternion q = tf_odom_to_base.getRotation();
+        initial_pos_ = Eigen::Vector3d(t.x(), t.y(), t.z());
+        initial_rot_ = Eigen::Quaterniond(q.w(), q.x(), q.y(), q.z());
+
+        initialized_from_odom_ = true;
+    } catch (tf::TransformException &ex) {
+        ROS_WARN("Could not get odom->base_link: %s", ex.what());
+        initialized_from_odom_ = false;
+    }
 }
 
 void ImuProcess::set_extrinsic(const V3D &transl)
@@ -166,7 +205,18 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
    ** 2. normalize the acceleration measurenments to unit gravity **/
   
   V3D cur_acc, cur_gyr;
-  
+
+  if (initialized_from_odom_) {
+    state_ikfom init_state = kf_state.get_x();
+    init_state.pos = initial_pos_;
+    init_state.rot = initial_rot_.toRotationMatrix();
+    kf_state.change_x(init_state);
+    ROS_INFO_STREAM("FAST-LIO initial pose set from odom: " 
+                    << "x=" << initial_pos_.x() 
+                    << ", y=" << initial_pos_.y() 
+                    << ", yaw=" << tf::getYaw(tf::Quaternion(initial_rot_.x(), initial_rot_.y(), initial_rot_.z(), initial_rot_.w())));
+  }
+
   if (b_first_frame_)
   {
     Reset();
@@ -216,12 +266,19 @@ void ImuProcess::IMU_init(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 
   last_imu_ = meas.imu.back();
 
 }
+
 void ImuProcess::PublishOdometry(const state_ikfom &imu_state, double timestamp)
 {
     nav_msgs::Odometry odom_msg;
     odom_msg.header.stamp = ros::Time().fromSec(timestamp);
     odom_msg.header.frame_id = "fast_odom_link";
     odom_msg.child_frame_id = "fast_body_link";
+
+    bool publish_tf_ = true;
+    bool two_d_mode_ = true;        // flatten to XY + yaw
+    double z_offset_ = 0.0;         // fixed base height when flattened
+    double corr_r_deg_[3] = {0,0,0}; // optional output rotation (roll,pitch,yaw deg)
+
 
     // 设置位置
     geometry_msgs::Pose pose_msg;
@@ -254,6 +311,7 @@ void ImuProcess::PublishOdometry(const state_ikfom &imu_state, double timestamp)
     transform.setRotation( q_tf );
     br.sendTransform( tf::StampedTransform( transform, odom_msg.header.stamp, "fast_odom_link", "fast_body_link" ) );
 }
+
 void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_out)
 {
   ROS_DEBUG("ImuProcess::UndistortPcl");
@@ -385,7 +443,7 @@ void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikf
 
 void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI::Ptr cur_pcl_un_)
 {
-    ROS_DEBUG("ImuProcess::Process");
+  ROS_DEBUG("ImuProcess::Process");
   double t1,t2,t3;
   t1 = omp_get_wtime();
 
@@ -394,6 +452,7 @@ void ImuProcess::Process(const MeasureGroup &meas,  esekfom::esekf<state_ikfom, 
 
   if (imu_need_init_)
   {
+    InitializeFromOdom();
     /// The very first lidar frame
     IMU_init(meas, kf_state, init_iter_num);
 

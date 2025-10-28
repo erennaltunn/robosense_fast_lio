@@ -174,7 +174,6 @@ void pointBodyToWorld_ikfom(PointType const * const pi, PointType * const po, st
     po->intensity = pi->intensity;
 }
 
-
 void pointBodyToWorld(PointType const * const pi, PointType * const po)
 {
     V3D p_body(pi->x, pi->y, pi->z);
@@ -834,52 +833,53 @@ int main(int argc, char** argv)
 {
     ros::init(argc, argv, "laserMapping");
     ros::NodeHandle nh;
+    ros::NodeHandle nh_flio("fast_lio");
 
     ros::ServiceServer service = nh.advertiseService("save_map", save_pcd_map);
 
 
-    nh.param<bool>("publish/path_en",path_en, true);
-    nh.param<bool>("publish/scan_publish_en",scan_pub_en, true);
-    nh.param<bool>("publish/dense_publish_en",dense_pub_en, true);
-    nh.param<bool>("publish/scan_bodyframe_pub_en",scan_body_pub_en, true);
-    nh.param<int>("max_iteration",NUM_MAX_ITERATIONS,4);
-    nh.param<string>("map_file_path",map_file_path,"");
-    nh.param<string>("common/lid_topic",lid_topic,"/livox/lidar");
-    nh.param<string>("common/imu_topic", imu_topic,"/livox/imu");
-    nh.param<string>("odom_frame", odom_frame,"fast_odom_link");
-    nh.param<string>("base_frame", base_frame,"fast_base_link");
+    nh_flio.param<bool>("publish/path_en",path_en, true);
+    nh_flio.param<bool>("publish/scan_publish_en",scan_pub_en, true);
+    nh_flio.param<bool>("publish/dense_publish_en",dense_pub_en, true);
+    nh_flio.param<bool>("publish/scan_bodyframe_pub_en",scan_body_pub_en, true);
+    nh_flio.param<int>("max_iteration",NUM_MAX_ITERATIONS,4);
+    nh_flio.param<string>("map_file_path",map_file_path,"");
+    nh_flio.param<string>("common/lid_topic",lid_topic,"/livox/lidar");
+    nh_flio.param<string>("common/imu_topic", imu_topic,"/livox/imu");
+    nh_flio.param<string>("fast_odom_frame", odom_frame,"fast_odom_link");
+    nh_flio.param<string>("fast_base_frame", base_frame,"fast_body_link");
 
-    nh.param<bool>("common/time_sync_en", time_sync_en, false);
-    nh.param<double>("common/time_offset_lidar_to_imu", time_diff_lidar_to_imu, 0.0);
-    nh.param<double>("filter_size_corner",filter_size_corner_min,0.5);
-    nh.param<double>("filter_size_surf",filter_size_surf_min,0.5);
-    nh.param<double>("filter_size_map",filter_size_map_min,0.5);
-    nh.param<double>("cube_side_length",cube_len,200);
-    nh.param<float>("mapping/det_range",DET_RANGE,300.f);
-    nh.param<double>("mapping/fov_degree",fov_deg,180);
-    nh.param<double>("mapping/gyr_cov",gyr_cov,0.1);
-    nh.param<double>("mapping/acc_cov",acc_cov,0.1);
-    nh.param<double>("mapping/b_gyr_cov",b_gyr_cov,0.0001);
-    nh.param<double>("mapping/b_acc_cov",b_acc_cov,0.0001);
-    nh.param<int>("mapping/num_sub_cloud", num_sub_cloud, 1);
-    nh.param<double>("mapping/max_search_dist_surf", max_search_dist_surf, 5);
-    nh.param<double>("preprocess/blind", p_pre->blind, 0.01);
-    nh.param<int>("preprocess/lidar_type", p_pre->lidar_type, AVIA);
-    nh.param<int>("preprocess/scan_line", p_pre->N_SCANS, 16);
-    nh.param<int>("preprocess/timestamp_unit", p_pre->time_unit, US);
-    nh.param<int>("preprocess/scan_rate", p_pre->SCAN_RATE, 10);
-    nh.param<int>("point_filter_num", p_pre->point_filter_num, 2);
-    nh.param<bool>("feature_extract_enable", p_pre->feature_enabled, false);
-    nh.param<bool>("runtime_pos_log_enable", runtime_pos_log, 0);
-    nh.param<bool>("mapping/extrinsic_est_en", extrinsic_est_en, true);
-    nh.param<bool>("pcd_save/pcd_save_en", pcd_save_en, false);
-    nh.param<int>("pcd_save/interval", pcd_save_interval, -1);
-    nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
-    nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
+    nh_flio.param<bool>("common/time_sync_en", time_sync_en, false);
+    nh_flio.param<double>("common/time_offset_lidar_to_imu", time_diff_lidar_to_imu, 0.0);
+    nh_flio.param<double>("filter_size_corner",filter_size_corner_min,0.5);
+    nh_flio.param<double>("filter_size_surf",filter_size_surf_min,0.5);
+    nh_flio.param<double>("filter_size_map",filter_size_map_min,0.5);
+    nh_flio.param<double>("cube_side_length",cube_len,200);
+    nh_flio.param<float>("mapping/det_range",DET_RANGE,300.f);
+    nh_flio.param<double>("mapping/fov_degree",fov_deg,180);
+    nh_flio.param<double>("mapping/gyr_cov",gyr_cov,0.1);
+    nh_flio.param<double>("mapping/acc_cov",acc_cov,0.1);
+    nh_flio.param<double>("mapping/b_gyr_cov",b_gyr_cov,0.0001);
+    nh_flio.param<double>("mapping/b_acc_cov",b_acc_cov,0.0001);
+    nh_flio.param<int>("mapping/num_sub_cloud", num_sub_cloud, 1);
+    nh_flio.param<double>("mapping/max_search_dist_surf", max_search_dist_surf, 5);
+    nh_flio.param<double>("preprocess/blind", p_pre->blind, 0.01);
+    nh_flio.param<int>("preprocess/lidar_type", p_pre->lidar_type, AVIA);
+    nh_flio.param<int>("preprocess/scan_line", p_pre->N_SCANS, 16);
+    nh_flio.param<int>("preprocess/timestamp_unit", p_pre->time_unit, US);
+    nh_flio.param<int>("preprocess/scan_rate", p_pre->SCAN_RATE, 10);
+    nh_flio.param<int>("point_filter_num", p_pre->point_filter_num, 2);
+    nh_flio.param<bool>("feature_extract_enable", p_pre->feature_enabled, false);
+    nh_flio.param<bool>("runtime_pos_log_enable", runtime_pos_log, 0);
+    nh_flio.param<bool>("mapping/extrinsic_est_en", extrinsic_est_en, true);
+    nh_flio.param<bool>("pcd_save/pcd_save_en", pcd_save_en, false);
+    nh_flio.param<int>("pcd_save/interval", pcd_save_interval, -1);
+    nh_flio.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
+    nh_flio.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
     cout<<"p_pre->lidar_type "<<p_pre->lidar_type<<endl;
     
     path.header.stamp    = ros::Time::now();
-    path.header.frame_id =odom_frame;
+    path.header.frame_id = odom_frame;
 
     /*** variables definition ***/
     int effect_feat_num = 0, frame_num = 0;
@@ -931,25 +931,25 @@ int main(int argc, char** argv)
         nh.subscribe(lid_topic, 200000, standard_pcl_cbk);
     ros::Subscriber sub_imu = nh.subscribe(imu_topic, 200000, imu_cbk);
     ros::Publisher pubLaserCloudFull = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_registered", 100000);
+            ("fast_lio/cloud_registered", 100000);
     ros::Publisher pubLaserCloudFull_body = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_registered_body", 100000);
+            ("fast_lio/cloud_registered_body", 100000);
     ros::Publisher pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>
-            ("/cloud_effected", 100000);
+            ("fast_lio/cloud_effected", 100000);
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>
-            ("/Laser_map", 100000);
+            ("fast_lio/Laser_map", 100000);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry> 
-            ("/Odometry", 100000);
+            ("fast_lio/Odometry", 100000);
     ros::Publisher pubImuOdom          = nh.advertise<nav_msgs::Odometry>
-            ("/high_frequency_odometry", 100000);
+            ("fast_lio/high_frequency_odometry", 100000);
     p_imu->set_node_handler(pubImuOdom);
 
     ros::Publisher pubPath          = nh.advertise<nav_msgs::Path> 
-            ("/path", 100000);
+            ("fast_lio/path", 100000);
     p_pre->pub_corn = nh.advertise<sensor_msgs::PointCloud2>
-            ("/corn_feature", 100000);
+            ("fast_lio/corn_feature", 100000);
     p_pre->pub_surf = nh.advertise<sensor_msgs::PointCloud2>
-            ("/surf_feature", 100000);
+            ("fast_lio/surf_feature", 100000);
 //------------------------------------------------------------------------------------------------------
     signal(SIGINT, SigHandle);
     ros::Rate rate(5000);
