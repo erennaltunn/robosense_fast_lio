@@ -1,7 +1,7 @@
 <launch>
     <!-- Launch file for ouster OS2-64 LiDAR -->
     
-    <arg name="robot_name" />
+    <arg name="robot_name"  />
 
     <arg name="rviz" default="false" />
     <remap from="/tf" to="/$(arg robot_name)/tf"/>
@@ -25,7 +25,6 @@
     <param name="filter_size_map" type="double" value="0.1" />
     <param name="cube_side_length" type="double" value="1000" />
     <param name="runtime_pos_log_enable" type="bool" value="1" />
-    <param name="fast_odom_frame" type="string" value="odommmm" />
 
     <node ns="$(arg robot_name)" pkg="fast_lio" type="fastlio_mapping" name="laserMapping" output="screen" /> 
 

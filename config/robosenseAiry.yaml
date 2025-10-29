@@ -12,7 +12,7 @@ fast_lio:
         blind: 0
     mode:
         init_from_odom: true
-        fast_odom_frame: "odom"
+        fast_odom_frame: "r5000219a8/odom"
         fast_base_frame: "fast_base_link"
     mapping:
         max_search_dist_surf: 1.0 # default: 5
