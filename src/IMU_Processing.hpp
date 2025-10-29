@@ -115,8 +115,24 @@ ImuProcess::ImuProcess()
   ns = ros::this_node::getNamespace();
   if (!ns.empty() && ns.front() == '/') ns.erase(0, 1); // strip leading slash
   robot_name = ns;   
+
+  const bool global_ns = robot_name.empty();
+  odom_link = global_ns ? "odom" : robot_name + "/odom";
+  base_link = global_ns ? "base_front_mid_laser_link"
+                        : robot_name + "/base_front_mid_laser_link";
+
+  // Good ways to log a std::string:
+  ROS_INFO_STREAM("robot name is " << (global_ns ? "<global>" : robot_name));
+  // or:
+  // ROS_INFO("robot name is %s", robot_name.c_str());
+
+  std::cout << "robot name is " << (global_ns ? "<global>" : robot_name) << std::endl;
+
+  odom_link = robot_name + "/odom";
+  base_link = robot_name + "/base_front_mid_laser_link";
+
   cout << robot_name;  
-  ROS_INFO("%s", robot_name);
+  ROS_INFO("robot name is %s", robot_name);
 
   // nh.param<string>("fast_base_frame", base_frame,"fast_body_link");
 
@@ -151,8 +167,8 @@ void ImuProcess::InitializeFromOdom() {
     tf::StampedTransform tf_odom_to_base;
     try {
         // Wait for a valid transform
-        tf_listener_->waitForTransform("odom", "base_link", ros::Time(0), ros::Duration(3.0));
-        tf_listener_->lookupTransform("odom", "base_link", ros::Time(0), tf_odom_to_base);
+        tf_listener_->waitForTransform(odom_link, base_link, ros::Time(0), ros::Duration(3.0));
+        tf_listener_->lookupTransform(odom_link, base_link, ros::Time(0), tf_odom_to_base);
         ROS_INFO("Initializing FAST-LIO odom at current base_link pose.");
         
         tf::Vector3 t = tf_odom_to_base.getOrigin();
@@ -272,7 +288,7 @@ void ImuProcess::PublishOdometry(const state_ikfom &imu_state, double timestamp)
 {
     nav_msgs::Odometry odom_msg;
     odom_msg.header.stamp = ros::Time().fromSec(timestamp);
-    odom_msg.header.frame_id = "fast_odom_link";
+    odom_msg.header.frame_id = odom_link;
     odom_msg.child_frame_id = "fast_body_link";
 
     bool publish_tf_ = true;
@@ -310,7 +326,7 @@ void ImuProcess::PublishOdometry(const state_ikfom &imu_state, double timestamp)
     q_tf.setY(q.y());
     q_tf.setZ(q.z());
     transform.setRotation( q_tf );
-    br.sendTransform( tf::StampedTransform( transform, odom_msg.header.stamp, "fast_odom_link", "fast_body_link" ) );
+    br.sendTransform( tf::StampedTransform( transform, odom_msg.header.stamp, odom_link, "fast_body_link" ) );
 }
 
 void ImuProcess::UndistortPcl(const MeasureGroup &meas, esekfom::esekf<state_ikfom, 12, input_ikfom> &kf_state, PointCloudXYZI &pcl_out)

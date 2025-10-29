@@ -138,7 +138,8 @@ geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
 
 shared_ptr<Preprocess> p_pre(new Preprocess());
-shared_ptr<ImuProcess> p_imu(new ImuProcess());
+shared_ptr<ImuProcess> p_imu;  // no construction here
+
 
 void SigHandle(int sig)
 {
@@ -835,9 +836,22 @@ int main(int argc, char** argv)
     ros::NodeHandle nh;
     ros::NodeHandle nh_flio("fast_lio");
 
-    ros::ServiceServer service = nh.advertiseService("save_map", save_pcd_map);
+    std::string robot_name;
+    {
+        std::string node_name = ros::this_node::getName();
+        if (!node_name.empty() && node_name.front() == '/') node_name.erase(0,1);
+        const auto slash = node_name.find('/');
+        robot_name = (slash == std::string::npos) ? std::string() : node_name.substr(0, slash);
+    }
 
+    ROS_INFO_STREAM("derived robot_name: " << (robot_name.empty() ? "<global>" : robot_name));
 
+    p_imu = std::make_shared<ImuProcess>();
+
+    ros::ServiceServer service = nh_flio.advertiseService("save_map", save_pcd_map);
+
+    nh_flio.param<string>("fast_odom_frame", odom_frame,"fast_odom_link");
+    nh_flio.param<string>("fast_base_frame", base_frame,"fast_body_link");
     nh_flio.param<bool>("publish/path_en",path_en, true);
     nh_flio.param<bool>("publish/scan_publish_en",scan_pub_en, true);
     nh_flio.param<bool>("publish/dense_publish_en",dense_pub_en, true);
@@ -846,9 +860,6 @@ int main(int argc, char** argv)
     nh_flio.param<string>("map_file_path",map_file_path,"");
     nh_flio.param<string>("common/lid_topic",lid_topic,"/livox/lidar");
     nh_flio.param<string>("common/imu_topic", imu_topic,"/livox/imu");
-    nh_flio.param<string>("fast_odom_frame", odom_frame,"fast_odom_link");
-    nh_flio.param<string>("fast_base_frame", base_frame,"fast_body_link");
-
     nh_flio.param<bool>("common/time_sync_en", time_sync_en, false);
     nh_flio.param<double>("common/time_offset_lidar_to_imu", time_diff_lidar_to_imu, 0.0);
     nh_flio.param<double>("filter_size_corner",filter_size_corner_min,0.5);

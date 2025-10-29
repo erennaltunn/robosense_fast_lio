@@ -18,7 +18,6 @@
         <remap from="imu_out" to="front_mid_lidar_imu_transformed"/>
     </node>
 
-
     <param name="feature_extract_enable" type="bool" value="0"/>
     <param name="point_filter_num" type="int" value="3"/>
     <param name="max_iteration" type="int" value="3" />
