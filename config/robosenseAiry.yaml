@@ -25,9 +25,9 @@ fast_lio:
         det_range:     200.0
         extrinsic_est_en:  false      # true: enable the online estimation of IMU-LiDAR extrinsic
         extrinsic_T: [ 0.0, 0.0, 0.0 ]
-        extrinsic_R: [1, 0, 0,
+        extrinsic_R: [0, 0, 1,
                     0, 1, 0,
-                    0, 0, 1]
+                    -1, 0, 0]
     publish:
         path_en:  true
         scan_publish_en:  true       # false: close all the point cloud output
