@@ -107,7 +107,9 @@ class Preprocess
 
   Preprocess();
   ~Preprocess();
-  
+
+  explicit Preprocess(const std::string &rn);
+
   //void process(const livox_ros_driver::CustomMsg::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out);
   void process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointCloudXYZI::Ptr &pcl_out,
                int i_sub_cloud, int num_sub_cloud, double & start_time, double & end_time);
@@ -122,6 +124,7 @@ class Preprocess
   double blind;
   bool feature_enabled, given_offset_time;
   ros::Publisher pub_full, pub_surf, pub_corn;
+  std::string robot_name_;
     
 
   private:

@@ -3,8 +3,8 @@
 #define RETURN0     0x00
 #define RETURN0AND1 0x10
 
-Preprocess::Preprocess()
-  :feature_enabled(0), lidar_type(AVIA), blind(0.01), point_filter_num(1)
+Preprocess::Preprocess(const std::string &rn)
+  :feature_enabled(0), lidar_type(AVIA), blind(0.01), point_filter_num(1), robot_name_(rn)
 {
   inf_bound = 10;
   N_SCANS   = 6;
@@ -921,7 +921,11 @@ void Preprocess::pub_func(PointCloudXYZI &pl, const ros::Publisher publisher, co
   pl.height = 1; pl.width = pl.size();
   sensor_msgs::PointCloud2 output;
   pcl::toROSMsg(pl, output);
-  output.header.frame_id = "fast_odom_link";
+  if (!robot_name_.empty())
+    output.header.frame_id = robot_name_ + "/base_front_mid_laser_link";
+  else
+    output.header.frame_id = "odom";
+      
   output.header.stamp = ct;
   publisher.publish(output);
 }

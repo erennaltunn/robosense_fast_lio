@@ -137,7 +137,7 @@ nav_msgs::Odometry odomAftMapped;
 geometry_msgs::Quaternion geoQuat;
 geometry_msgs::PoseStamped msg_body_pose;
 
-shared_ptr<Preprocess> p_pre(new Preprocess());
+shared_ptr<Preprocess> p_pre;
 shared_ptr<ImuProcess> p_imu;  // no construction here
 
 
@@ -855,6 +855,7 @@ int main(int argc, char** argv)
 
   // NOW construct ImuProcess with the known robot_name
   p_imu = std::make_shared<ImuProcess>(robot_name);
+  p_pre = std::make_shared<Preprocess>(robot_name);
 
   ros::ServiceServer service = nh_flio.advertiseService("save_map", save_pcd_map);
 

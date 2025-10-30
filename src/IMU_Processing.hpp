@@ -96,7 +96,7 @@ private:
     const bool global_ns = robot_name_.empty();
     odom_link        = global_ns ? std::string("odom")              : (robot_name_ + "/odom");
     base_link        = global_ns ? std::string("fast_lio_pose")     : (robot_name_ + "/fast_lio_pose"); // output frame we PUBLISH
-    seed_base_frame_ = global_ns ? std::string("base_link")         : (robot_name_ + "/base_link");     // existing frame we READ to seed
+    seed_base_frame_ = global_ns ? std::string("front_imu_link")         : (robot_name_ + "/front_imu_link");     // existing frame we READ to seed
   }
 
   PointCloudXYZI::Ptr cur_pcl_un_;
