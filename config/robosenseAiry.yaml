@@ -1,4 +1,13 @@
 fast_lio:
+    feature_extract_enable: false          # <param name="feature_extract_enable" ...>
+    point_filter_num: 3                   # <param name="point_filter_num" ...>
+    max_iteration: 3                      # <param name="max_iteration" ...>
+    filter_size_corner: 0.1               # not in launch, but C++ asks for it
+    filter_size_surf: 0.1                 # <param name="filter_size_surf" ...>
+    filter_size_map: 0.1                  # <param name="filter_size_map" ...>
+    cube_side_length: 1000                # <param name="cube_side_length" ...>
+    runtime_pos_log_enable: true          # <param name="runtime_pos_log_enable" ...>
+    scan_rate: 10
     common:
         lid_topic:  "base_front_mid_lidar_points"
         imu_topic:  "front_mid_lidar_imu_transformed" # /mavros/imu/data /ouster/imu /imu/data
