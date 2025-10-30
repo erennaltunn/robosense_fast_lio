@@ -107,7 +107,7 @@ fast_lio:
     # IMU noise params — used inside the EKF / ESKF part.
     # Keep your original values.
     acc_cov: 0.2
-    gyr_cov: 0.2
+    gyr_cov: 0.05
     b_acc_cov: 0.001
     b_gyr_cov: 0.001
 
