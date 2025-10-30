@@ -13,7 +13,7 @@ fast_lio:
     mode:
         init_from_odom: true
         fast_odom_frame: "r5000219a8/odom"
-        fast_base_frame: "fast_base_link"
+        fast_base_frame: "r5000219a8/fast_lio_pose"
     mapping:
         max_search_dist_surf: 1.0 # default: 5
         num_sub_cloud: 1
