@@ -106,10 +106,10 @@ fast_lio:
 
     # IMU noise params — used inside the EKF / ESKF part.
     # Keep your original values.
-    acc_cov: 0.1
-    gyr_cov: 0.1
-    b_acc_cov: 0.0001
-    b_gyr_cov: 0.0001
+    acc_cov: 0.2
+    gyr_cov: 0.2
+    b_acc_cov: 0.001
+    b_gyr_cov: 0.001
 
     # Horizontal field of view the algorithm should care about (deg).
     fov_degree: 120
@@ -154,7 +154,12 @@ fast_lio:
   # ======================================================================
   pcd_save:
     # Enable saving the map / scans to PCD files.
-    pcd_save_en: false
+    pcd_save_en: true
+    # Where to put the PCD file(s)
+    directory: /root/ws
+
+    # Name of the PCD file to write
+    file_name: scans.pcd
 
     # How many LiDAR frames per PCD file.
     # -1 means: put ALL frames in a single PCD (can get huge).

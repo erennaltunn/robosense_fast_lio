@@ -82,7 +82,7 @@ mutex mtx_buffer;
 condition_variable sig_buffer;
 
 string root_dir = ROOT_DIR;
-string map_file_path, lid_topic, imu_topic, odom_frame, base_frame;
+string map_file_path, lid_topic, imu_topic, odom_frame, base_frame, pcd_save_dir, pcd_save_file;
 
 double res_mean_last = 0.05, total_residual = 0.0;
 double last_timestamp_lidar = 0, last_timestamp_imu = -1.0;
@@ -595,31 +595,35 @@ void publish_frame_world(const ros::Publisher & pubLaserCloudFull)
     }
 }
 
-bool save_pcd_map(fast_lio::save_map::Request &req, fast_lio::save_map::Response &res)
+bool save_pcd_map(fast_lio::save_map::Request &req,
+                  fast_lio::save_map::Response &res)
 {
-    std::cout << "save_pcd_map service start." <<std::endl;
+  ROS_INFO("[fast_lio] save_pcd_map service start.");
 
-    if (pcl_wait_save->size() == 0  ){
-        cout << "can not save pcd map: pcl_wait_save->size() == 0 " << endl;
-        return false;
-    }
-    if (!pcd_save_en){
-        cout << "can not save pcd map: pcd_save_en == false." << endl;
-        return false;
-    }
+  if (!pcd_save_en) {
+    ROS_WARN("[fast_lio] cannot save PCD map: pcd_save_en == false");
+    return false;
+  }
 
-    if (pcl_wait_save->size() > 0 && pcd_save_en)
-    {
-        string file_name = string("scans.pcd");
-//        string all_points_dir(string(string(ROOT_DIR) + "PCD/") + file_name);
-        string all_points_dir("/home/ruanjy/PCD/" + file_name);
+  if (!pcl_wait_save || pcl_wait_save->size() == 0) {
+    ROS_WARN("[fast_lio] cannot save PCD map: pcl_wait_save is empty.");
+    return false;
+  }
 
-        pcl::PCDWriter pcd_writer;
-        cout << "current scans saved to /PCD/" << file_name << endl;
-        pcd_writer.writeBinary(all_points_dir, *pcl_wait_save);
-        return true;
-    }
+  // build full path from params
+  // e.g. /root/ws/scans.pcd
+  std::string full_path = pcd_save_dir + "/" + pcd_save_file;
+
+  pcl::PCDWriter pcd_writer;
+  if (pcd_writer.writeBinary(full_path, *pcl_wait_save) == 0) {
+    ROS_INFO("[fast_lio] current scans saved to: %s", full_path.c_str());
+    return true;
+  } else {
+    ROS_ERROR("[fast_lio] failed to write PCD to: %s", full_path.c_str());
+    return false;
+  }
 }
+
 void publish_frame_body(const ros::Publisher & pubLaserCloudFull_body)
 {
     int size = feats_undistort->points.size();
@@ -913,7 +917,8 @@ int main(int argc, char** argv)
   nh_flio.param<double>("odom_filter/yaw_epsilon", yaw_eps, 0.0015);
   nh_flio.param<double>("odom_filter/still_timeout", still_timeout, 0.4);
   nh_flio.param<bool>  ("odom_filter/enforce_2d",    enforce_2d,    false);
-
+  nh_flio.param("pcd_save/directory",       pcd_save_dir,    std::string("/root/ws"));
+  nh_flio.param("pcd_save/file_name",       pcd_save_file,   std::string("scans.pcd"));
 
   nh_flio.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
   nh_flio.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
