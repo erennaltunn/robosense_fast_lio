@@ -159,3 +159,9 @@ fast_lio:
     # How many LiDAR frames per PCD file.
     # -1 means: put ALL frames in a single PCD (can get huge).
     interval: -1
+
+  odom_filter:
+    pos_epsilon: 0.003     # 3 mm
+    yaw_epsilon: 0.003     # ~0.17 deg
+    still_timeout: 0.25
+    enforce_2d: true    # NEW: force motion in xy, z=0, roll=pitch=0

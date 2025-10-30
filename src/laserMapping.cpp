@@ -39,6 +39,7 @@
 #include <fstream>
 #include <csignal>
 #include <unistd.h>
+#include <cmath>
 #include <Python.h>
 #include <so3_math.h>
 #include <ros/ros.h>
@@ -95,6 +96,8 @@ int    iterCount = 0, feats_down_size = 0, NUM_MAX_ITERATIONS = 0, laserCloudVal
 bool   point_selected_surf[100000] = {0};
 bool   lidar_pushed, flg_first_scan = true, flg_exit = false, flg_EKF_inited;
 bool   scan_pub_en = false, dense_pub_en = false, scan_body_pub_en = false;
+double pos_eps, yaw_eps, still_timeout;
+bool   enforce_2d = false;
 
 vector<vector<int>>  pointSearchInd_surf; 
 vector<BoxPointType> cub_needrm;
@@ -140,12 +143,23 @@ geometry_msgs::PoseStamped msg_body_pose;
 shared_ptr<Preprocess> p_pre;
 shared_ptr<ImuProcess> p_imu;  // no construction here
 
+static bool have_stable_pose = false;
+static geometry_msgs::Pose last_stable_pose;
+static ros::Time last_move_time;
 
 void SigHandle(int sig)
 {
     flg_exit = true;
     ROS_WARN("catch sig %d", sig);
     sig_buffer.notify_all();
+}
+
+static inline double shortest_angular_distance(double from, double to)
+{
+  double d = to - from;
+  while (d >  M_PI) d -= 2.0 * M_PI;
+  while (d < -M_PI) d += 2.0 * M_PI;
+  return d;
 }
 
 inline void dump_lio_state_to_log(FILE *fp)  
@@ -830,6 +844,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     solve_time += omp_get_wtime() - solve_start_;
 }
 
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "laserMapping");
@@ -894,6 +909,12 @@ int main(int argc, char** argv)
   nh_flio.param<bool>("mapping/extrinsic_est_en", extrinsic_est_en, true);
   nh_flio.param<bool>("pcd_save/pcd_save_en", pcd_save_en, false);
   nh_flio.param<int>("pcd_save/interval", pcd_save_interval, -1);
+  nh_flio.param<double>("odom_filter/pos_epsilon", pos_eps, 0.002);
+  nh_flio.param<double>("odom_filter/yaw_epsilon", yaw_eps, 0.0015);
+  nh_flio.param<double>("odom_filter/still_timeout", still_timeout, 0.4);
+  nh_flio.param<bool>  ("odom_filter/enforce_2d",    enforce_2d,    false);
+
+
   nh_flio.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
   nh_flio.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
 
@@ -992,10 +1013,47 @@ int main(int argc, char** argv)
       state_point = kf.get_x();
       pos_lid = state_point.pos + state_point.rot * state_point.offset_T_L_I;
 
-      if (feats_undistort->empty() || (feats_undistort == NULL))
+      if (!feats_undistort || feats_undistort->empty())
       {
-        std::cout<< "feats_undistort->empty() " << feats_undistort->empty() << std::endl;
+        std::cout << "feats_undistort->empty() " << feats_undistort->empty() << std::endl;
         ROS_WARN("No point, skip this scan!\n");
+         // if we already have a stable pose, publish it so odom doesn't jitter
+        if (have_stable_pose)
+        {
+            odomAftMapped.pose.pose = last_stable_pose;
+
+            // ENFORCE 2D HERE TOO
+            if (enforce_2d)
+            {
+            odomAftMapped.pose.pose.position.z = 0.0;
+
+            // keep only yaw from stable
+            tf::Quaternion q_st;
+            tf::quaternionMsgToTF(odomAftMapped.pose.pose.orientation, q_st);
+            double rr, pp, yy;
+            tf::Matrix3x3(q_st).getRPY(rr, pp, yy);
+
+            tf::Quaternion q_yaw;
+            q_yaw.setRPY(0.0, 0.0, yy);
+            q_yaw.normalize();
+            tf::quaternionTFToMsg(q_yaw, odomAftMapped.pose.pose.orientation);
+            }
+
+            odomAftMapped.twist.twist = geometry_msgs::Twist();
+
+
+            // normalize once more, just in case
+            tf::Quaternion q_pub;
+            tf::quaternionMsgToTF(odomAftMapped.pose.pose.orientation, q_pub);
+            if (std::abs(q_pub.length2() - 1.0) > 1e-3) {
+            q_pub.normalize();
+            tf::quaternionTFToMsg(q_pub, odomAftMapped.pose.pose.orientation);
+            }
+
+            publish_odometry(pubOdomAftMapped);
+            ROS_INFO_STREAM_THROTTLE(0.5, "[odom-freeze] forced freeze (empty scan)");
+        }
+        // nothing more to do for this iteration
         continue;
       }
 
@@ -1025,8 +1083,27 @@ int main(int argc, char** argv)
             
       if (feats_down_size < 5)
       {
-        std::cout<< "feats_down_size " << feats_down_size << std::endl;
-        ROS_WARN("No point, skip this scan!\n");
+        std::cout << "feats_down_size " << feats_down_size << std::endl;
+        ROS_WARN("No point after downsample, skip this scan!");
+
+        if (have_stable_pose) {
+            odomAftMapped.pose.pose = last_stable_pose;
+            if (enforce_2d)
+            {
+                odomAftMapped.pose.pose.position.z = 0.0;
+                tf::Quaternion q_st;
+                tf::quaternionMsgToTF(odomAftMapped.pose.pose.orientation, q_st);
+                double rr, pp, yy;
+                tf::Matrix3x3(q_st).getRPY(rr, pp, yy);
+                tf::Quaternion q_yaw;
+                q_yaw.setRPY(0.0, 0.0, yy);
+                q_yaw.normalize();
+                tf::quaternionTFToMsg(q_yaw, odomAftMapped.pose.pose.orientation);
+            }
+
+            odomAftMapped.twist.twist = geometry_msgs::Twist();  // zero everything
+            publish_odometry(pubOdomAftMapped);
+        }
         continue;
       }
             
@@ -1064,6 +1141,143 @@ int main(int argc, char** argv)
       geoQuat.w = state_point.rot.coeffs()[3];
 
       double t_update_end = omp_get_wtime();
+
+      geometry_msgs::Pose &cur = odomAftMapped.pose.pose;
+
+    // -------------------------------------------------------------
+    // 1) normalize current orientation (fixes "Quaternion Not Properly Normalized")
+    // -------------------------------------------------------------
+    tf::Quaternion q_cur_raw;
+    tf::quaternionMsgToTF(cur.orientation, q_cur_raw);
+    if (std::abs(q_cur_raw.length2() - 1.0) > 1e-3) {
+        q_cur_raw.normalize();
+        tf::quaternionTFToMsg(q_cur_raw, cur.orientation);
+        ROS_WARN_STREAM_THROTTLE(1.0, "[odom-freeze] normalized current quaternion");
+    }
+
+    // -------------------------------------------------------------
+    // 2) compute deltas vs stable
+    // -------------------------------------------------------------
+    double dx = cur.position.x - last_stable_pose.position.x;
+    double dy = cur.position.y - last_stable_pose.position.y;
+    double dz = cur.position.z - last_stable_pose.position.z;
+
+    // current yaw
+    double r_cur, p_cur, y_cur;
+    tf::Matrix3x3(q_cur_raw).getRPY(r_cur, p_cur, y_cur);
+
+    if (enforce_2d)
+    {
+      // zero z
+      cur.position.z = 0.0;
+
+      // only yaw
+      tf::Quaternion q_yaw;
+      q_yaw.setRPY(0.0, 0.0, y_cur);
+      q_yaw.normalize();
+      tf::quaternionTFToMsg(q_yaw, cur.orientation);
+
+      // also make the EKF-published pose 2D (odomAftMapped is already cur)
+    }
+
+    // stable yaw (normalize stable too, just in case)
+    tf::Quaternion q_ref_raw;
+    tf::quaternionMsgToTF(last_stable_pose.orientation, q_ref_raw);
+    if (std::abs(q_ref_raw.length2() - 1.0) > 1e-3) {
+        q_ref_raw.normalize();
+        tf::quaternionTFToMsg(q_ref_raw, last_stable_pose.orientation);
+    }
+    double r_ref, p_ref, y_ref;
+    tf::Matrix3x3(q_ref_raw).getRPY(r_ref, p_ref, y_ref);
+
+    // your helper
+    double dyaw = shortest_angular_distance(y_ref, y_cur);
+
+    // -------------------------------------------------------------
+    // 3) thresholds (make them looser for now)
+    // -------------------------------------------------------------
+
+    bool small_pos = (std::fabs(dx) < pos_eps) &&
+                    (std::fabs(dy) < pos_eps);  // ignore dz for now
+    bool small_yaw = (std::fabs(dyaw) < yaw_eps);
+
+    ros::Time now = ros::Time::now();
+    double still_for = (now - last_move_time).toSec();
+
+    // -------------------------------------------------------------
+    // 4) PRINT EVERYTHING
+    // -------------------------------------------------------------
+    ROS_INFO_STREAM_THROTTLE(0.2,
+    "[odom-freeze] dx=" << dx << " dy=" << dy << " dz=" << dz
+    << " | dyaw=" << dyaw
+    << " | small_pos=" << small_pos << " small_yaw=" << small_yaw
+    << " | still_for=" << still_for << "s / timeout=" << still_timeout << "s");
+
+    // -------------------------------------------------------------
+    // 5) main logic
+    // -------------------------------------------------------------
+    if (!have_stable_pose) {
+        last_stable_pose = cur;
+        if (enforce_2d) {
+            last_stable_pose.position.z = 0.0;
+            tf::Quaternion q_yaw;
+            q_yaw.setRPY(0.0, 0.0, y_cur);
+            q_yaw.normalize();
+            tf::quaternionTFToMsg(q_yaw, last_stable_pose.orientation);
+        }
+        have_stable_pose = true;
+        last_move_time   = now;
+        ROS_INFO_STREAM("[odom-freeze] init stable pose");
+    } 
+    else {
+        if (small_pos && small_yaw) {
+            if (still_for > still_timeout) {
+            // FREEZE
+            odomAftMapped.pose.pose = last_stable_pose;
+            // force Z to 0 or to stable Z
+            if (enforce_2d) {
+                odomAftMapped.pose.pose.position.z = 0.0;
+            }
+
+            // force zero twist so RViz odom display doesn't interpolate
+            odomAftMapped.twist.twist = geometry_msgs::Twist();
+            ROS_INFO_STREAM_THROTTLE(0.5, "[odom-freeze] FROZEN (publishing last stable pose)");
+            } 
+            else {
+             // grace → update stable
+                last_stable_pose = cur;
+                if (enforce_2d) {
+                    last_stable_pose.position.z = 0.0;
+                    tf::Quaternion q_yaw;
+                    q_yaw.setRPY(0.0, 0.0, y_cur);
+                    q_yaw.normalize();
+                    tf::quaternionTFToMsg(q_yaw, last_stable_pose.orientation);
+                }
+                ROS_INFO_STREAM_THROTTLE(1.0, "[odom-freeze] still but in grace (" << still_for << "s)");
+            }
+        } else {
+            // moved
+            last_stable_pose = cur;
+            if (enforce_2d) {
+                last_stable_pose.position.z = 0.0;
+                tf::Quaternion q_yaw;
+                q_yaw.setRPY(0.0, 0.0, y_cur);
+                q_yaw.normalize();
+                tf::quaternionTFToMsg(q_yaw, last_stable_pose.orientation);
+            }
+            last_move_time = now;
+            ROS_INFO_STREAM_THROTTLE(0.5, "[odom-freeze] robot moved -> update stable");
+        }
+    }
+    // -------------------------------------------------------------
+    // 6) extra safety: normalize before publishing TF too
+    // -------------------------------------------------------------
+    tf::Quaternion q_pub;
+    tf::quaternionMsgToTF(odomAftMapped.pose.pose.orientation, q_pub);
+    if (std::abs(q_pub.length2() - 1.0) > 1e-3) {
+        q_pub.normalize();
+        tf::quaternionTFToMsg(q_pub, odomAftMapped.pose.pose.orientation);
+    }
 
       publish_odometry(pubOdomAftMapped);
 
