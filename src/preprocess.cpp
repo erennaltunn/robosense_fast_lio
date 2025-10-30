@@ -423,7 +423,7 @@ void Preprocess::robosenseM1_handler(const sensor_msgs::PointCloud2::ConstPtr &m
         std::sort(time_stamp_of_points.begin(), time_stamp_of_points.end());
 /*        std::cout<<setprecision(18)<< "pl surf timestamp:\n" << "min "<< time_stamp_of_points.front()  <<
                  " max " << time_stamp_of_points.back()<<std::endl;*/
-        std::cout        << " point_size_downsample: "<< pl_surf.size()<<std::endl;
+        // std::cout        << " point_size_downsample: "<< pl_surf.size()<<std::endl;
     }
      //pub_func(pl_surf, pub_full, msg->header.stamp);
      pub_func(pl_surf, pub_corn, msg->header.stamp);

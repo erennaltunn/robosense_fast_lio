@@ -1,48 +1,161 @@
+# Fast LIO configuration for Robosense Airy (OS2-like, 96 lines)
+
 fast_lio:
-    feature_extract_enable: false          # <param name="feature_extract_enable" ...>
-    point_filter_num: 3                   # <param name="point_filter_num" ...>
-    max_iteration: 3                      # <param name="max_iteration" ...>
-    filter_size_corner: 0.1               # not in launch, but C++ asks for it
-    filter_size_surf: 0.1                 # <param name="filter_size_surf" ...>
-    filter_size_map: 0.1                  # <param name="filter_size_map" ...>
-    cube_side_length: 1000                # <param name="cube_side_length" ...>
-    runtime_pos_log_enable: true          # <param name="runtime_pos_log_enable" ...>
-    scan_rate: 10
-    common:
-        lid_topic:  "base_front_mid_lidar_points"
-        imu_topic:  "front_mid_lidar_imu_transformed" # /mavros/imu/data /ouster/imu /imu/data
-        time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
-        time_offset_lidar_to_imu: 0.0 # Time offset between lidar and IMU calibrated by other algorithms, e.g. LI-Init (can be found in README).
-                                    # This param will take effect no matter what time_sync_en is. So if the time offset is not known exactly, please set as 0.0
-    preprocess:
-        lidar_type: 5                # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR,
-        scan_line: 96
-        timestamp_unit: 0                 # 0-second, 1-milisecond, 2-microsecond, 3-nanosecond.
-        blind: 0
-    mode:
-        init_from_odom: true
-        fast_odom_frame: "r5000219a8/odom"
-        fast_base_frame: "r5000219a8/fast_lio_pose"
-    mapping:
-        max_search_dist_surf: 1.0 # default: 5
-        num_sub_cloud: 1
-        acc_cov: 0.1
-        gyr_cov: 0.1
-        b_acc_cov: 0.0001
-        b_gyr_cov: 0.0001
-        fov_degree:    120
-        det_range:     200.0
-        extrinsic_est_en:  false      # true: enable the online estimation of IMU-LiDAR extrinsic
-        extrinsic_T: [ 0.0, 0.0, 0.0 ]
-        extrinsic_R: [0, 0, 1,
-                    0, 1, 0,
-                    -1, 0, 0]
-    publish:
-        path_en:  true
-        scan_publish_en:  true       # false: close all the point cloud output
-        dense_publish_en: true       # false: low down the points number in a global-frame point clouds scan.
-        scan_bodyframe_pub_en: true  # true: output the point cloud scans in IMU-body-frame
-    pcd_save:
-        pcd_save_en: false
-        interval: -1                 # how many LiDAR frames saved in each pcd file;
-                                    # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.
+  # Enable/disable extraction of sharp/corner/surface features.
+  # In some fast_lio forks, this is optional because LIO directly uses raw points.
+  feature_extract_enable: false
+
+  # Downsampling by keeping only every Nth point in preprocess (after basic filtering).
+  # Bigger number -> fewer points -> faster but less detail.
+  point_filter_num: 3
+
+  # Max LM / optimization iterations per scan. 3–5 is typical.
+  max_iteration: 3
+
+  # Voxel/leaf size used when pre-filtering corner-like points (in meters).
+  filter_size_corner: 0.1
+
+  # Voxel/leaf size for surface-like points (in meters).
+  filter_size_surf: 0.1
+
+  # Voxel/leaf size for the internal global map (in meters). Smaller = denser map.
+  filter_size_map: 0.1
+
+  # Size of the global cube/map to keep active around the robot (in meters).
+  # Big value so the forklift can move in a warehouse without reallocation.
+  cube_side_length: 1000
+
+  # If true, the node prints / logs the estimated pose at runtime.
+  runtime_pos_log_enable: false
+
+  # ======================================================================
+  # COMMON SENSOR PARAMS
+  # ======================================================================
+  common:
+    # Topic where Robosense Airy (merged/deskewed) point cloud is published.
+    # In your launch you remap the LiDAR to this name.
+    lid_topic: "base_front_mid_lidar_points"
+
+    # IMU topic after your imu_transformer.py rotates it to front_imu_link.
+    imu_topic: "front_mid_lidar_imu_transformed"
+
+    # Set to true ONLY if LiDAR and IMU stamps are not on the same clock.
+    # You said "false" in launch -> keep it false.
+    time_sync_en: false
+
+    # If you have a fixed known offset between LiDAR and IMU clocks, put it here (seconds).
+    # Leave 0.0 if you don’t know it.
+    time_offset_lidar_to_imu: 0.0
+
+  # ======================================================================
+  # PREPROCESSING (LiDAR-specific)
+  # ======================================================================
+  preprocess:
+    # LiDAR type used in code:
+    #   1 = Livox
+    #   2 = Velodyne-16
+    #   3 = Ouster-64
+    #   4/5 = Robosense M1 / Airy in this fork
+    # For Robosense Airy we keep 5.
+    lidar_type: 5
+
+    # Number of scan lines / channels.
+    # Robosense Airy outputs 96 channels, so keep 96.
+    scan_line: 96
+
+    # Time unit for per-point timestamps in the incoming cloud:
+    #   0 = seconds
+    #   1 = milliseconds
+    #   2 = microseconds
+    #   3 = nanoseconds
+    # For most ROS LiDAR drivers we keep 0.
+    timestamp_unit: 0
+
+    # Points closer than this (meters) will be dropped.
+    # Airy is rooftop-mounted → 0 is okay, but for forklifts you can set 0.3–0.5.
+    blind: 0.3
+
+    # If your C++ side reads "preprocess/scan_rate", add it here too:
+    # scan_rate: 10  # Hz, typical for 10Hz spinning lidars
+
+  # ======================================================================
+  # FRAMES & MODES
+  # ======================================================================
+  mode:
+    # If true: LIO will accept an external odom to bootstrap / align.
+    init_from_odom: true
+
+    # The parent/world frame that LIO will publish odometry in.
+    # You wanted robot-name-scoped frames.
+    fast_odom_frame: "r5000219a8/odom"
+
+    # The body/base frame that LIO will attach the pose to.
+    # This can be your IMU-LiDAR-fixed link, or a virtual "fast_lio_pose".
+    fast_base_frame: "r5000219a8/fast_lio_pose"
+
+  # ======================================================================
+  # MAPPING / STATE ESTIMATION
+  # ======================================================================
+  mapping:
+    # Max distance to search for plane/surface features around current pose (meters).
+    # Lower = faster, but needs good local density.
+    max_search_dist_surf: 1.0
+
+    # If your driver splits one LiDAR rotation into multiple sub-clouds, handle them here.
+    num_sub_cloud: 1
+
+    # IMU noise params — used inside the EKF / ESKF part.
+    # Keep your original values.
+    acc_cov: 0.1
+    gyr_cov: 0.1
+    b_acc_cov: 0.0001
+    b_gyr_cov: 0.0001
+
+    # Horizontal field of view the algorithm should care about (deg).
+    fov_degree: 120
+
+    # Detection / useable range for mapping (meters).
+    det_range: 200.0
+
+    # If true, LIO will try to estimate LiDAR–IMU extrinsics online.
+    # You’ve already calibrated your IMU with imu_transformer, so keep false.
+    extrinsic_est_en: false
+
+    # Translation from IMU to LiDAR (or chosen convention) in meters.
+    # If you have exact URDF extrinsics, put them here.
+    extrinsic_T: [0.0, 0.0, 0.0]
+
+    # Rotation from IMU to LiDAR as a 3x3 row-major matrix.
+    # You currently rotate IMU by +90 roll / +90 yaw in Python, so keep identity-ish here.
+    extrinsic_R: [
+      0, 0, 1,
+      0, 1, 0,
+      -1, 0, 0
+    ]
+
+  # ======================================================================
+  # PUBLISHING OPTIONS
+  # ======================================================================
+  publish:
+    # Publish the estimated path as a nav_msgs/Path.
+    path_en: true
+
+    # Publish the current LiDAR scan in the map frame.
+    scan_publish_en: true
+
+    # Publish a denser global cloud (can be heavy).
+    dense_publish_en: true
+
+    # Publish the scan in the body/IMU frame — useful for debugging extrinsics.
+    scan_bodyframe_pub_en: true
+
+  # ======================================================================
+  # PCD SAVE
+  # ======================================================================
+  pcd_save:
+    # Enable saving the map / scans to PCD files.
+    pcd_save_en: false
+
+    # How many LiDAR frames per PCD file.
+    # -1 means: put ALL frames in a single PCD (can get huge).
+    interval: -1
